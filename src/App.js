@@ -271,11 +271,32 @@ function ClaimModal({ plate, currentUser, onClose, onSave }) {
 }
 
 // ─── Edit Plate Modal ─────────────────────────────────────────────────────────
+function FormField({ label, name, type="text", options, value, onChange, error, disabled }) {
+  return (
+    <div>
+      <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-1">{label}</label>
+      {options
+        ? <select value={value} onChange={e=>onChange(name, e.target.value)} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-500">
+            {options.map(o=><option key={o} value={o}>{o}</option>)}
+          </select>
+        : <input type={type} value={value} disabled={disabled} onChange={e=>onChange(name, e.target.value)}
+            className={`w-full border rounded-xl px-4 py-2.5 text-sm focus:outline-none ${disabled?"bg-gray-50":""} ${error?"border-red-300":"border-gray-200 focus:border-blue-500"}`}/>
+      }
+      {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
+    </div>
+  );
+}
+
 function EditPlateModal({ plate, onClose, onSave }) {
   const isNew = !plate.id;
   const [form, setForm] = useState({ plateNumber: plate.plateNumber||"", vehicleType: plate.vehicleType||"", applicantName: plate.applicantName||"", applicantEmail: plate.applicantEmail||"", dateApplied: plate.dateApplied||new Date().toISOString().slice(0,10), mvFileNo: plate.mvFileNo||"", classification: plate.classification||"Private", region: plate.region||"Region IV-A (CALABARZON)", status: plate.status||"Received" });
   const [err, setErr] = useState({});
   const [saving, setSaving] = useState(false);
+
+  const handleChange = useCallback((name, value) => {
+    setForm(f => ({ ...f, [name]: value }));
+  }, []);
+
   const validate = () => { const e={}; if (!/^[A-Z]{3}[0-9]{3}$/.test(form.plateNumber.toUpperCase())) e.plateNumber="Must be 3 letters + 3 digits (e.g. ABC123)"; if (!form.vehicleType.trim()) e.vehicleType="Required"; if (!form.applicantName.trim()) e.applicantName="Required"; if (!form.mvFileNo.trim()) e.mvFileNo="Required"; setErr(e); return !Object.keys(e).length; };
   const handleSave = async () => {
     if (!validate()) return;
@@ -288,12 +309,6 @@ function EditPlateModal({ plate, onClose, onSave }) {
     onSave(dbToPlate(result.data));
     setSaving(false);
   };
-  const F = ({ label, name, type="text", options }) => (
-    <div><label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-1">{label}</label>
-    {options ? <select value={form[name]} onChange={e=>setForm(f=>({...f,[name]:e.target.value}))} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-500">{options.map(o=><option key={o} value={o}>{o}</option>)}</select>
-    : <input type={type} value={form[name]} onChange={e=>setForm(f=>({...f,[name]:e.target.value}))} className={`w-full border rounded-xl px-4 py-2.5 text-sm focus:outline-none ${err[name]?"border-red-300":"border-gray-200 focus:border-blue-500"}`}/>}
-    {err[name] && <p className="text-xs text-red-500 mt-1">{err[name]}</p>}</div>
-  );
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-start justify-center p-4 overflow-y-auto">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg my-8">
@@ -301,13 +316,19 @@ function EditPlateModal({ plate, onClose, onSave }) {
         <div className="p-5 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div><label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-1">Plate Number *</label><input value={form.plateNumber} onChange={e=>setForm(f=>({...f,plateNumber:e.target.value.toUpperCase()}))} maxLength={6} placeholder="ABC123" disabled={!isNew} className={`w-full border rounded-xl px-4 py-2.5 text-sm font-mono font-bold tracking-widest focus:outline-none ${!isNew?"bg-gray-50":""} ${err.plateNumber?"border-red-300":"border-gray-200 focus:border-blue-500"}`}/>{err.plateNumber&&<p className="text-xs text-red-500 mt-1">{err.plateNumber}</p>}</div>
-            <F label="Status" name="status" options={VALID_STATUSES}/>
+            <FormField label="Status" name="status" options={VALID_STATUSES} value={form.status} onChange={handleChange} error={err.status}/>
           </div>
-          <div className="grid grid-cols-2 gap-4"><F label="Vehicle Type *" name="vehicleType"/><F label="Classification" name="classification" options={["Private","Commercial","Public Utility"]}/></div>
-          <F label="Applicant Name *" name="applicantName"/>
-          <F label="Applicant Email" name="applicantEmail" type="email"/>
-          <div className="grid grid-cols-2 gap-4"><F label="MV File No. *" name="mvFileNo"/><F label="Date Applied" name="dateApplied" type="date"/></div>
-          <F label="Region" name="region"/>
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Vehicle Type *" name="vehicleType" value={form.vehicleType} onChange={handleChange} error={err.vehicleType}/>
+            <FormField label="Classification" name="classification" options={["Private","Commercial","Public Utility"]} value={form.classification} onChange={handleChange} error={err.classification}/>
+          </div>
+          <FormField label="Applicant Name *" name="applicantName" value={form.applicantName} onChange={handleChange} error={err.applicantName}/>
+          <FormField label="Applicant Email" name="applicantEmail" type="email" value={form.applicantEmail} onChange={handleChange} error={err.applicantEmail}/>
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="MV File No. *" name="mvFileNo" value={form.mvFileNo} onChange={handleChange} error={err.mvFileNo}/>
+            <FormField label="Date Applied" name="dateApplied" type="date" value={form.dateApplied} onChange={handleChange} error={err.dateApplied}/>
+          </div>
+          <FormField label="Region" name="region" value={form.region} onChange={handleChange} error={err.region}/>
           <div className="flex gap-3 pt-1">
             <button onClick={onClose} className="flex-1 py-3 border border-gray-200 rounded-xl text-sm font-semibold hover:bg-gray-50">Cancel</button>
             <button onClick={handleSave} disabled={saving} className="flex-1 py-3 bg-blue-700 hover:bg-blue-800 disabled:bg-gray-200 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2">
@@ -663,12 +684,11 @@ function PublicTracker({ onAdminClick }) {
             </div>
             <div className="p-5 space-y-5">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div><div className="inline-flex items-center gap-2 bg-gray-900 text-white px-4 py-2 rounded-lg font-mono text-2xl font-bold tracking-widest shadow-md mb-1"><Car size={20} className="text-yellow-400"/>{result.plateNumber}</div><p className="text-xs text-gray-500 mt-1 pl-1">MV File No: <span className="font-mono font-semibold text-gray-700">{result.mvFileNo}</span></p></div>
+                <div><div className="inline-flex items-center gap-2 bg-gray-900 text-white px-4 py-2 rounded-lg font-mono text-2xl font-bold tracking-widest shadow-md mb-1"><Car size={20} className="text-yellow-400"/>{result.plateNumber}</div></div>
                 <div className="text-xs text-gray-400 sm:text-right"><p>Last updated</p><p className="font-semibold text-gray-600">{result.lastUpdated}</p></div>
               </div>
               <div className={`flex gap-3 rounded-xl p-4 border ${cfg.color}`}><cfg.icon size={18} className="shrink-0 mt-0.5"/><p className="text-sm font-medium">{cfg.desc}</p></div>
               <div className="rounded-xl bg-gray-50 border border-gray-100 px-4">
-                <DetailRow label="Applicant" value={result.applicantName}/>
                 <DetailRow label="Vehicle Type" value={result.vehicleType}/>
                 <DetailRow label="Classification" value={result.classification}/>
                 {result.dateApplied && <DetailRow label="Date Applied" value={new Date(result.dateApplied).toLocaleDateString("en-PH",{year:"numeric",month:"long",day:"numeric"})}/>}
