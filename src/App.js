@@ -449,6 +449,10 @@ function AdminPanel({ currentUser, profiles, setProfiles, onLogout }) {
   const [plates, setPlates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("table");
+  const [adminSearch, setAdminSearch] = useState("");
+  const filteredPlates = adminSearch.trim()
+    ? plates.filter(p => p.plateNumber.includes(adminSearch.trim()))
+    : plates;
   const [csvText, setCsvText] = useState("");
   const [parseResult, setParseResult] = useState(null);
   const [importDone, setImportDone] = useState(false);
@@ -517,7 +521,19 @@ function AdminPanel({ currentUser, profiles, setProfiles, onLogout }) {
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
               <h2 className="font-bold text-gray-800">Plate Records</h2>
-              <button onClick={()=>setShowNewPlate(true)} className="flex items-center gap-2 text-xs bg-blue-700 text-white px-3 py-2 rounded-lg hover:bg-blue-800 font-semibold"><PlusCircle size={14}/> Add Plate</button>
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"/>
+                  <input
+                    value={adminSearch}
+                    onChange={e=>setAdminSearch(e.target.value.toUpperCase().replace(/\s/g,""))}
+                    placeholder="Search plate..."
+                    maxLength={6}
+                    className="pl-8 pr-3 py-2 text-xs font-mono border border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 w-36 tracking-widest"
+                  />
+                </div>
+                <button onClick={()=>setShowNewPlate(true)} className="flex items-center gap-2 text-xs bg-blue-700 text-white px-3 py-2 rounded-lg hover:bg-blue-800 font-semibold"><PlusCircle size={14}/> Add Plate</button>
+              </div>
             </div>
             {loading ? (
               <div className="p-12 flex justify-center"><Loader size={24} className="animate-spin text-blue-700"/></div>
@@ -526,8 +542,8 @@ function AdminPanel({ currentUser, profiles, setProfiles, onLogout }) {
                 <table className="w-full text-sm">
                   <thead><tr className="bg-gray-50 border-b border-gray-100">{["Plate No.","Applicant","Email","Vehicle","Status","Last Updated","Actions"].map(h=><th key={h} className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>)}</tr></thead>
                   <tbody>
-                    {plates.length===0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">No plates. Click "Add Plate" or import a CSV.</td></tr>}
-                    {plates.map(p=>(
+                    {filteredPlates.length===0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">{adminSearch ? `No plates matching "${adminSearch}"` : `No plates. Click "Add Plate" or import a CSV.`}</td></tr>}
+                    {filteredPlates.map(p=>(
                       <tr key={p.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                         <td className="px-4 py-3 font-mono font-bold text-gray-800 whitespace-nowrap">{p.plateNumber}</td>
                         <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{p.applicantName}</td>
@@ -633,10 +649,25 @@ function AdminLogin({ onLogin }) {
 }
 
 // ─── Public Tracker ───────────────────────────────────────────────────────────
+const popInStyle = `
+@keyframes popIn {
+  0%   { opacity: 0; transform: translateY(24px) scale(0.97); }
+  60%  { opacity: 1; transform: translateY(-4px) scale(1.01); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes fadeSlideIn {
+  0%   { opacity: 0; transform: translateY(16px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.pop-in { animation: popIn 0.45s cubic-bezier(0.34,1.56,0.64,1) both; }
+.fade-slide { animation: fadeSlideIn 0.35s ease both; }
+`;
+
 function PublicTracker({ onAdminClick }) {
   const [query, setQuery] = useState("");
   const [result, setResult] = useState(null);
   const [uiState, setUiState] = useState("idle");
+  const [animKey, setAnimKey] = useState(0);
   const normalize = (v) => v.trim().toUpperCase().replace(/\s/g, "");
 
   const handleSearch = async (val) => {
@@ -644,14 +675,15 @@ function PublicTracker({ onAdminClick }) {
     if (!q) return;
     setUiState("loading"); setResult(null);
     const { data, error } = await supabase.from("plates").select("*").eq("plate_number", q).single();
-    if (error || !data) { setUiState("notfound"); return; }
-    setResult(dbToPlate(data)); setUiState("found");
+    if (error || !data) { setUiState("notfound"); setAnimKey(k=>k+1); return; }
+    setResult(dbToPlate(data)); setUiState("found"); setAnimKey(k=>k+1);
   };
 
   const cfg = result ? STATUS_CONFIG[result.status] : null;
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <style>{popInStyle}</style>
       <LTOHeader rightSlot={<button onClick={onAdminClick} className="flex items-center gap-1.5 text-xs bg-blue-800 hover:bg-blue-700 px-3 py-2 rounded-lg transition-colors shrink-0"><Lock size={13}/> Admin</button>}/>
       <div className="bg-blue-800 pb-8 pt-2">
         <div className="max-w-4xl mx-auto px-4">
@@ -675,9 +707,9 @@ function PublicTracker({ onAdminClick }) {
       </div>
       <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
         {uiState==="loading" && <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 flex flex-col items-center gap-4"><div className="w-14 h-14 rounded-full border-4 border-blue-100 border-t-blue-700 animate-spin"/><p className="text-gray-500 text-sm">Searching records…</p></div>}
-        {uiState==="notfound" && <div className="bg-white rounded-2xl shadow-sm border border-red-100 p-10 flex flex-col items-center gap-3 text-center"><div className="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center"><XCircle size={28} className="text-red-500"/></div><h3 className="text-gray-800 font-bold text-lg">Plate Not Found</h3><p className="text-gray-500 text-sm max-w-sm">No records found for <span className="font-mono font-bold text-gray-700">{query}</span>. Please verify the plate number and try again.</p><button onClick={()=>{setUiState("idle");setQuery("");}} className="mt-2 text-blue-700 text-sm underline">Clear and try again</button></div>}
+        {uiState==="notfound" && <div key={animKey} className="pop-in bg-white rounded-2xl shadow-sm border border-red-100 p-10 flex flex-col items-center gap-3 text-center"><div className="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center"><XCircle size={28} className="text-red-500"/></div><h3 className="text-gray-800 font-bold text-lg">Plate Not Found</h3><p className="text-gray-500 text-sm max-w-sm">No records found for <span className="font-mono font-bold text-gray-700">{query}</span>. Please verify the plate number and try again.</p><button onClick={()=>{setUiState("idle");setQuery("");}} className="mt-2 text-blue-700 text-sm underline">Clear and try again</button></div>}
         {uiState==="found" && result && cfg && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div key={animKey} className="pop-in bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <div className={`px-5 py-3 flex items-center justify-between gap-3 border-b ${cfg.color}`}>
               <div className="flex items-center gap-2"><span className={`w-2.5 h-2.5 rounded-full ${cfg.dot} animate-pulse`}/><span className="text-sm font-bold">Current Status</span></div>
               <StatusBadge status={result.status}/>
@@ -687,8 +719,8 @@ function PublicTracker({ onAdminClick }) {
                 <div><div className="inline-flex items-center gap-2 bg-gray-900 text-white px-4 py-2 rounded-lg font-mono text-2xl font-bold tracking-widest shadow-md mb-1"><Car size={20} className="text-yellow-400"/>{result.plateNumber}</div></div>
                 <div className="text-xs text-gray-400 sm:text-right"><p>Last updated</p><p className="font-semibold text-gray-600">{result.lastUpdated}</p></div>
               </div>
-              <div className={`flex gap-3 rounded-xl p-4 border ${cfg.color}`}><cfg.icon size={18} className="shrink-0 mt-0.5"/><p className="text-sm font-medium">{cfg.desc}</p></div>
-              <div className="rounded-xl bg-gray-50 border border-gray-100 px-4">
+              <div className={`flex gap-3 rounded-xl p-4 border ${cfg.color} fade-slide`} style={{animationDelay:"0.15s"}}><cfg.icon size={18} className="shrink-0 mt-0.5"/><p className="text-sm font-medium">{cfg.desc}</p></div>
+              <div className="rounded-xl bg-gray-50 border border-gray-100 px-4 fade-slide" style={{animationDelay:"0.22s"}}>
                 <DetailRow label="Vehicle Type" value={result.vehicleType}/>
                 <DetailRow label="Classification" value={result.classification}/>
                 {result.dateApplied && <DetailRow label="Date Applied" value={new Date(result.dateApplied).toLocaleDateString("en-PH",{year:"numeric",month:"long",day:"numeric"})}/>}
