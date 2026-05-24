@@ -30,6 +30,7 @@ const ANNOUNCEMENTS = [
 const dbToPlate = (r) => ({
   id: r.id, plateNumber: r.plate_number, vehicleType: r.vehicle_type,
   applicantName: r.applicant_name, applicantEmail: r.applicant_email,
+  applicantAddress: r.applicant_address || "",
   dateApplied: r.date_applied, mvFileNo: r.mv_file_no,
   classification: r.classification, region: r.region, status: r.status,
   lastUpdated: r.last_updated ? new Date(r.last_updated).toLocaleString("en-PH") : "",
@@ -43,6 +44,7 @@ const dbToPlate = (r) => ({
 const plateToDb = (p) => ({
   plate_number: p.plateNumber, vehicle_type: p.vehicleType,
   applicant_name: p.applicantName, applicant_email: p.applicantEmail || "",
+  applicant_address: p.applicantAddress || "",
   date_applied: p.dateApplied || null, mv_file_no: p.mvFileNo,
   classification: p.classification, region: p.region, status: p.status,
 });
@@ -64,6 +66,7 @@ const parseCSV = (text) => {
     const status = VALID_STATUSES.find(s => s.toLowerCase() === rawStatus.toLowerCase()) || "Received";
     rows.push({ plateNumber: plate, vehicleType: row["vehicletype"] || row["vehicle"] || "Unknown",
       applicantName: row["applicantname"] || row["applicant"] || "N/A", applicantEmail: row["applicantemail"] || row["email"] || "",
+      applicantAddress: row["applicantaddress"] || row["address"] || "",
       dateApplied: row["dateapplied"] || row["date"] || new Date().toISOString().slice(0,10), status,
       mvFileNo: row["mvfileno"] || row["mvfile"] || `MV-${Date.now()}`,
       classification: row["classification"] || "Private", region: row["region"] || "Region IV-A (CALABARZON)" });
@@ -71,10 +74,10 @@ const parseCSV = (text) => {
   return { rows, errors };
 };
 
-const SAMPLE_CSV = `plateNumber,vehicleType,applicantName,applicantEmail,dateApplied,status,mvFileNo,classification,region
-MNO234,Sedan,Cris P***,cris@example.com,2025-05-01,Received,MV-2025-00610,Private,Region IV-A (CALABARZON)
-PQR567,SUV,Ana L***,ana@example.com,2025-04-15,Available for Claiming,MV-2025-00588,Private,Region IV-A (CALABARZON)
-STU890,Motorcycle,Ben G***,ben@example.com,2025-03-20,Claimed,MV-2025-00450,Private,Region IV-A (CALABARZON)`;
+const SAMPLE_CSV = `plateNumber,applicantName,applicantEmail,applicantAddress,status,classification,region
+MNO234,Cris P***,cris@example.com,123 Rizal St. Binangonan Rizal,Received,Private,Region IV-A (CALABARZON)
+PQR567,Ana L***,ana@example.com,456 Bonifacio Ave. Binangonan Rizal,Available for Claiming,Private,Region IV-A (CALABARZON)
+STU890,Ben G***,ben@example.com,789 Mabini St. Binangonan Rizal,Claimed,Private,Region IV-A (CALABARZON)`;
 
 // ─── Shared UI ────────────────────────────────────────────────────────────────
 function AnnouncementIcon({ type }) {
@@ -222,7 +225,8 @@ function ClaimModal({ plate, currentUser, onClose, onSave }) {
         </div>
         <div className="p-5 space-y-5">
           <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
-            <p className="text-xs text-blue-700"><span className="font-bold">Applicant:</span> {plate.applicantName} &nbsp;|&nbsp; <span className="font-bold">Vehicle:</span> {plate.vehicleType}</p>
+            <p className="text-xs text-blue-700"><span className="font-bold">Applicant:</span> {plate.applicantName} &nbsp;|&nbsp; <span className="font-bold">Plate:</span> {plate.plateNumber}</p>
+            {plate.applicantAddress && <p className="text-xs text-blue-600 mt-1"><span className="font-bold">Address:</span> {plate.applicantAddress}</p>}
             {plate.applicantEmail && <p className="text-xs text-blue-600 mt-1"><span className="font-bold">Email:</span> {plate.applicantEmail}</p>}
           </div>
           <div>
@@ -289,7 +293,7 @@ function FormField({ label, name, type="text", options, value, onChange, error, 
 
 function EditPlateModal({ plate, onClose, onSave }) {
   const isNew = !plate.id;
-  const [form, setForm] = useState({ plateNumber: plate.plateNumber||"", vehicleType: plate.vehicleType||"", applicantName: plate.applicantName||"", applicantEmail: plate.applicantEmail||"", dateApplied: plate.dateApplied||new Date().toISOString().slice(0,10), mvFileNo: plate.mvFileNo||"", classification: plate.classification||"Private", region: plate.region||"Region IV-A (CALABARZON)", status: plate.status||"Received" });
+  const [form, setForm] = useState({ plateNumber: plate.plateNumber||"", vehicleType: plate.vehicleType||"", applicantName: plate.applicantName||"", applicantEmail: plate.applicantEmail||"", applicantAddress: plate.applicantAddress||"", dateApplied: plate.dateApplied||new Date().toISOString().slice(0,10), mvFileNo: plate.mvFileNo||"", classification: plate.classification||"Private", region: plate.region||"Region IV-A (CALABARZON)", status: plate.status||"Received" });
   const [err, setErr] = useState({});
   const [saving, setSaving] = useState(false);
 
@@ -297,7 +301,7 @@ function EditPlateModal({ plate, onClose, onSave }) {
     setForm(f => ({ ...f, [name]: value }));
   }, []);
 
-  const validate = () => { const e={}; if (!/^[A-Z]{3}[0-9]{3}$/.test(form.plateNumber.toUpperCase())) e.plateNumber="Must be 3 letters + 3 digits (e.g. ABC123)"; if (!form.vehicleType.trim()) e.vehicleType="Required"; if (!form.applicantName.trim()) e.applicantName="Required"; if (!form.mvFileNo.trim()) e.mvFileNo="Required"; setErr(e); return !Object.keys(e).length; };
+  const validate = () => { const e={}; if (!/^[A-Z]{3}[0-9]{3}$/.test(form.plateNumber.toUpperCase())) e.plateNumber="Must be 3 letters + 3 digits (e.g. ABC123)"; if (!form.applicantName.trim()) e.applicantName="Required"; setErr(e); return !Object.keys(e).length; };
   const handleSave = async () => {
     if (!validate()) return;
     setSaving(true);
@@ -319,13 +323,14 @@ function EditPlateModal({ plate, onClose, onSave }) {
             <FormField label="Status" name="status" options={VALID_STATUSES} value={form.status} onChange={handleChange} error={err.status}/>
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <FormField label="Vehicle Type *" name="vehicleType" value={form.vehicleType} onChange={handleChange} error={err.vehicleType}/>
+            <FormField label="Vehicle Type" name="vehicleType" value={form.vehicleType} onChange={handleChange} error={err.vehicleType}/>
             <FormField label="Classification" name="classification" options={["Private","Commercial","Public Utility"]} value={form.classification} onChange={handleChange} error={err.classification}/>
           </div>
           <FormField label="Applicant Name *" name="applicantName" value={form.applicantName} onChange={handleChange} error={err.applicantName}/>
           <FormField label="Applicant Email" name="applicantEmail" type="email" value={form.applicantEmail} onChange={handleChange} error={err.applicantEmail}/>
+          <FormField label="Owner's Address" name="applicantAddress" value={form.applicantAddress} onChange={handleChange} error={err.applicantAddress}/>
           <div className="grid grid-cols-2 gap-4">
-            <FormField label="MV File No. *" name="mvFileNo" value={form.mvFileNo} onChange={handleChange} error={err.mvFileNo}/>
+            <FormField label="MV File No." name="mvFileNo" value={form.mvFileNo} onChange={handleChange} error={err.mvFileNo}/>
             <FormField label="Date Applied" name="dateApplied" type="date" value={form.dateApplied} onChange={handleChange} error={err.dateApplied}/>
           </div>
           <FormField label="Region" name="region" value={form.region} onChange={handleChange} error={err.region}/>
@@ -540,15 +545,15 @@ function AdminPanel({ currentUser, profiles, setProfiles, onLogout }) {
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead><tr className="bg-gray-50 border-b border-gray-100">{["Plate No.","Applicant","Email","Vehicle","Status","Last Updated","Actions"].map(h=><th key={h} className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>)}</tr></thead>
+                  <thead><tr className="bg-gray-50 border-b border-gray-100">{["Plate No.","Applicant","Address","Email","Status","Last Updated","Actions"].map(h=><th key={h} className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>)}</tr></thead>
                   <tbody>
                     {filteredPlates.length===0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">{adminSearch ? `No plates matching "${adminSearch}"` : `No plates. Click "Add Plate" or import a CSV.`}</td></tr>}
                     {filteredPlates.map(p=>(
                       <tr key={p.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                         <td className="px-4 py-3 font-mono font-bold text-gray-800 whitespace-nowrap">{p.plateNumber}</td>
                         <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{p.applicantName}</td>
+                        <td className="px-4 py-3 text-gray-600 text-xs max-w-[180px] truncate" title={p.applicantAddress}>{p.applicantAddress||"—"}</td>
                         <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{p.applicantEmail||"—"}</td>
-                        <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{p.vehicleType}</td>
                         <td className="px-4 py-3 whitespace-nowrap"><StatusBadge status={p.status}/></td>
                         <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{p.lastUpdated}</td>
                         <td className="px-4 py-3">
@@ -573,7 +578,7 @@ function AdminPanel({ currentUser, profiles, setProfiles, onLogout }) {
             <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5">
               <div className="flex items-center gap-2 mb-3"><Info size={16} className="text-blue-700"/><h3 className="font-bold text-blue-800 text-sm">CSV Format Guide</h3></div>
               <p className="text-xs text-blue-700 mb-3">Plate numbers must be <span className="font-mono font-bold">3 letters + 3 digits, no spaces</span> (e.g. <span className="font-mono font-bold">ABC123</span>).</p>
-              <div className="flex flex-wrap gap-1.5 mb-3">{["plateNumber","vehicleType","applicantName","applicantEmail","dateApplied","status","mvFileNo","classification","region"].map(c=><span key={c} className="font-mono text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">{c}</span>)}</div>
+              <div className="flex flex-wrap gap-1.5 mb-3">{["plateNumber","applicantName","applicantEmail","applicantAddress","status","classification","region"].map(c=><span key={c} className="font-mono text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">{c}</span>)}</div>
               <p className="text-xs text-blue-600 mb-3">Valid statuses: <span className="font-semibold">{VALID_STATUSES.join(", ")}</span></p>
               <button onClick={downloadSample} className="flex items-center gap-2 text-xs bg-blue-700 text-white px-3 py-2 rounded-lg hover:bg-blue-800 font-semibold"><Download size={13}/> Download Sample CSV</button>
             </div>

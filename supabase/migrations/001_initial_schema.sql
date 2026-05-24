@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS public.plates (
   vehicle_type      text NOT NULL DEFAULT '',
   applicant_name    text NOT NULL DEFAULT '',
   applicant_email   text NOT NULL DEFAULT '',
+  applicant_address text NOT NULL DEFAULT '',
   date_applied      date,
   mv_file_no        text NOT NULL DEFAULT '',
   classification    text NOT NULL DEFAULT 'Private',
