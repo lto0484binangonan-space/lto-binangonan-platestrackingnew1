@@ -54,22 +54,48 @@ const normalizeKey = (k) => k.trim().toLowerCase().replace(/\s+/g, "");
 const parseCSV = (text) => {
   const lines = text.trim().split(/\r?\n/).filter(Boolean);
   if (lines.length < 2) return { rows: [], errors: ["CSV must have a header row and at least one data row."] };
-  const headers = lines[0].split(",").map(h => h.trim());
+  const headers = lines[0].split(",").map(h => h.trim().replace(/^"|"$/g, ""));
   const errors = [], rows = [];
   lines.slice(1).forEach((line, idx) => {
-    const vals = line.split(",").map(v => v.trim());
+    // Parse CSV values respecting quoted fields
+    const vals = [];
+    let cur = "", inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      if (line[i] === '"') { inQ = !inQ; }
+      else if (line[i] === ',' && !inQ) { vals.push(cur.trim()); cur = ""; }
+      else { cur += line[i]; }
+    }
+    vals.push(cur.trim());
+
     const row = {};
-    headers.forEach((h, i) => { row[normalizeKey(h)] = vals[i] ?? ""; });
-    const plate = (row["platenumber"] || row["plate"] || "").toUpperCase().replace(/\s/g, "");
-    if (!/^[A-Z]{3}[0-9]{3}$/.test(plate)) { errors.push(`Row ${idx+2}: Invalid plate "${plate}" — must be 3 letters + 3 digits (e.g. ABC123).`); return; }
+    headers.forEach((h, i) => { row[normalizeKey(h)] = (vals[i] ?? "").replace(/^"|"$/g, "").trim(); });
+
+    // Get raw plate and auto-clean it
+    const rawPlate = row["platenumber"] || row["plate"] || "";
+    // Remove dashes, dots, spaces, quotes then uppercase
+    const plate = rawPlate.toUpperCase().replace(/[-.\s"']/g, "");
+
+    // Skip completely empty rows silently
+    if (!plate && !row["applicantname"] && !row["applicant"]) return;
+
+    if (!/^[A-Z]{3}[0-9]{3}$/.test(plate)) {
+      errors.push(`Row ${idx + 2}: Invalid plate "${rawPlate}"${rawPlate !== plate ? ` (cleaned: "${plate}")` : ""} — must be 3 letters + 3 digits (e.g. ABC123).`);
+      return;
+    }
     const rawStatus = (row["status"] || "").trim();
     const status = VALID_STATUSES.find(s => s.toLowerCase() === rawStatus.toLowerCase()) || "Received";
-    rows.push({ plateNumber: plate, vehicleType: row["vehicletype"] || row["vehicle"] || "Unknown",
-      applicantName: row["applicantname"] || row["applicant"] || "N/A", applicantEmail: row["applicantemail"] || row["email"] || "",
+    rows.push({
+      plateNumber: plate,
+      vehicleType: row["vehicletype"] || row["vehicle"] || "",
+      applicantName: row["applicantname"] || row["applicant"] || "N/A",
+      applicantEmail: row["applicantemail"] || row["email"] || "",
       applicantAddress: row["applicantaddress"] || row["address"] || "",
-      dateApplied: row["dateapplied"] || row["date"] || new Date().toISOString().slice(0,10), status,
+      dateApplied: row["dateapplied"] || row["date"] || new Date().toISOString().slice(0,10),
+      status,
       mvFileNo: row["mvfileno"] || row["mvfile"] || `MV-${Date.now()}`,
-      classification: row["classification"] || "Private", region: row["region"] || "Region IV-A (CALABARZON)" });
+      classification: row["classification"] || "Private",
+      region: row["region"] || "Region IV-A (CALABARZON)",
+    });
   });
   return { rows, errors };
 };
