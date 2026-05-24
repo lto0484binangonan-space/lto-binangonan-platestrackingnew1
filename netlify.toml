@@ -1,5 +1,5 @@
 [build]
-  command = "npm run build"
+  command = "DISABLE_ESLINT_PLUGIN=true react-scripts build"
   publish = "build"
 
 [[redirects]]

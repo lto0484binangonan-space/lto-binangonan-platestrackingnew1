@@ -6,7 +6,7 @@ import {
   ChevronDown, ChevronUp, Lock, Eye, EyeOff,
   Table, Trash2, PlusCircle, Download, AlertTriangle,
   Edit3, Save, X, Users, UserPlus, Key, Camera,
-  PenTool, Mail, Loader, CheckSquare, RefreshCw
+  PenTool, Loader, CheckSquare, RefreshCw
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 
@@ -136,7 +136,7 @@ function SignaturePad({ onSave, onClear, existingData }) {
       img.onload = () => { canvasRef.current.getContext("2d").drawImage(img, 0, 0); setHasSig(true); };
       img.src = existingData;
     }
-  }, []);
+  }, [existingData]);
   const getPos = (e, canvas) => {
     const rect = canvas.getBoundingClientRect();
     const sx = canvas.width / rect.width, sy = canvas.height / rect.height;
