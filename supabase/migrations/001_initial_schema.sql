@@ -1,6 +1,7 @@
 -- ============================================================
--- LTO Binangonan Plate Tracker — Supabase Migration
+-- LTO Binangonan Plate Tracker — Safe Re-runnable Migration
 -- Run this in: Supabase Dashboard → SQL Editor → New Query
+-- Safe to run multiple times — drops existing policies first
 -- ============================================================
 
 -- ── 1. PLATES table ──────────────────────────────────────────
@@ -17,20 +18,17 @@ CREATE TABLE IF NOT EXISTS public.plates (
   status            text NOT NULL DEFAULT 'Received'
                     CHECK (status IN ('Received','Available for Claiming','Claimed')),
   last_updated      timestamptz NOT NULL DEFAULT now(),
-  -- Claim fields (populated when status = 'Claimed')
   received_by       text,
   claimed_at        timestamptz,
   released_by       text,
-  signature_data    text,   -- base64 PNG
-  photo_data        text,   -- base64 JPEG
+  signature_data    text,
+  photo_data        text,
   drive_file_id     text,
   drive_file_name   text,
   created_at        timestamptz NOT NULL DEFAULT now()
 );
 
--- ── 2. ADMIN ACCOUNTS table ──────────────────────────────────
--- Uses Supabase Auth (auth.users) for actual login.
--- This table stores the display profile + role.
+-- ── 2. ADMIN PROFILES table ───────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.admin_profiles (
   id          uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   username    text NOT NULL UNIQUE,
@@ -41,16 +39,23 @@ CREATE TABLE IF NOT EXISTS public.admin_profiles (
   created_at  timestamptz NOT NULL DEFAULT now()
 );
 
--- ── 3. Row Level Security ─────────────────────────────────────
+-- ── 3. Enable RLS ─────────────────────────────────────────────
 ALTER TABLE public.plates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.admin_profiles ENABLE ROW LEVEL SECURITY;
 
--- Public: read-only access to plates (for the public tracker)
+-- ── 4. Drop existing policies first (safe to re-run) ──────────
+DROP POLICY IF EXISTS "Public can read plates"          ON public.plates;
+DROP POLICY IF EXISTS "Admins can insert plates"        ON public.plates;
+DROP POLICY IF EXISTS "Admins can update plates"        ON public.plates;
+DROP POLICY IF EXISTS "Admins can delete plates"        ON public.plates;
+DROP POLICY IF EXISTS "Admins read own profile"         ON public.admin_profiles;
+DROP POLICY IF EXISTS "Superadmins manage all profiles" ON public.admin_profiles;
+
+-- ── 5. Recreate all policies ──────────────────────────────────
 CREATE POLICY "Public can read plates"
   ON public.plates FOR SELECT
   USING (true);
 
--- Authenticated admins: full CRUD on plates
 CREATE POLICY "Admins can insert plates"
   ON public.plates FOR INSERT
   TO authenticated
@@ -66,7 +71,6 @@ CREATE POLICY "Admins can delete plates"
   TO authenticated
   USING (true);
 
--- Admin profiles: each admin sees their own profile; superadmins see all
 CREATE POLICY "Admins read own profile"
   ON public.admin_profiles FOR SELECT
   TO authenticated
@@ -88,7 +92,7 @@ CREATE POLICY "Superadmins manage all profiles"
     )
   );
 
--- ── 4. Helper: auto-update last_updated ──────────────────────
+-- ── 6. Auto-update last_updated trigger ───────────────────────
 CREATE OR REPLACE FUNCTION public.set_last_updated()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
@@ -97,11 +101,13 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS plates_set_last_updated ON public.plates;
+
 CREATE TRIGGER plates_set_last_updated
   BEFORE UPDATE ON public.plates
   FOR EACH ROW EXECUTE FUNCTION public.set_last_updated();
 
--- ── 5. Seed sample plates ─────────────────────────────────────
+-- ── 7. Seed sample plates (skips duplicates) ──────────────────
 INSERT INTO public.plates
   (plate_number, vehicle_type, applicant_name, applicant_email, date_applied,
    mv_file_no, classification, region, status)
@@ -114,14 +120,9 @@ VALUES
   ('NCR789','Jeepney',     'Lito B***',  'lito.b@example.com',  '2025-02-10','MV-2025-00201','Public Utility','Region IV-A (CALABARZON)','Claimed')
 ON CONFLICT (plate_number) DO NOTHING;
 
--- ── 6. IMPORTANT: Create the first Super Admin account ────────
--- After running this migration:
--- 1. Go to Supabase → Authentication → Users → "Invite User"
---    OR run: supabase auth admin create-user (CLI)
--- 2. Use email: admin@lto-binangonan.gov.ph  password: (set your own)
--- 3. Copy the user UUID from the Users list, then run:
+-- ── 8. Done! Create your first Super Admin ────────────────────
+-- Go to: Supabase → Authentication → Users → Add user → Create new user
+-- Copy the UUID shown, then run this (replace the UUID):
 --
 -- INSERT INTO public.admin_profiles (id, username, full_name, role)
 -- VALUES ('<PASTE-UUID-HERE>', 'admin', 'System Administrator', 'superadmin');
---
--- ── Done! ─────────────────────────────────────────────────────

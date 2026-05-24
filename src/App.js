@@ -579,8 +579,13 @@ function AdminLogin({ onLogin }) {
     setLoading(true); setErr("");
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) { setErr(error.message); setLoading(false); return; }
-    const { data: profile, error: pe } = await supabase.from("admin_profiles").select("*").eq("id", data.user.id).single();
-    if (pe || !profile) { setErr("Account not found or access denied."); await supabase.auth.signOut(); setLoading(false); return; }
+    const { data: profile, error: pe } = await supabase
+      .from("admin_profiles")
+      .select("*")
+      .eq("id", data.user.id)
+      .maybeSingle();
+    if (pe) { setErr("Database error: " + pe.message); await supabase.auth.signOut(); setLoading(false); return; }
+    if (!profile) { setErr("Admin profile not found. Please contact the system administrator."); await supabase.auth.signOut(); setLoading(false); return; }
     if (!profile.active) { setErr("This account is inactive. Contact the system administrator."); await supabase.auth.signOut(); setLoading(false); return; }
     onLogin(profile);
     setLoading(false);
