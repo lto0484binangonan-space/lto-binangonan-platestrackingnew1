@@ -50,8 +50,7 @@ const plateToDb = (p) => ({
 const normalizeKey = (k) => k.trim().toLowerCase().replace(/\s+/g, "");
 
 const parseCSV = (text) => {
-  const lines = text.trim().split(/?
-/).filter(Boolean);
+  const lines = text.trim().split(/\r?\n/).filter(Boolean);
   if (lines.length < 2) return { rows: [], errors: ["CSV must have a header row and at least one data row."] };
   const headers = lines[0].split(",").map(h => h.trim());
   const errors = [], rows = [];
@@ -60,19 +59,22 @@ const parseCSV = (text) => {
     const row = {};
     headers.forEach((h, i) => { row[normalizeKey(h)] = vals[i] ?? ""; });
     const plate = (row["platenumber"] || row["plate"] || "").toUpperCase().replace(/\s/g, "");
-    if (!/^[A-Z]{3}[0-9]{3}$/.test(plate)) { errors.push(); return; }
+    if (!/^[A-Z]{3}[0-9]{3}$/.test(plate)) { errors.push(`Row ${idx+2}: Invalid plate "${plate}" — must be 3 letters + 3 digits (e.g. ABC123).`); return; }
     const rawStatus = (row["status"] || "").trim();
     const status = VALID_STATUSES.find(s => s.toLowerCase() === rawStatus.toLowerCase()) || "Received";
     rows.push({ plateNumber: plate, vehicleType: row["vehicletype"] || row["vehicle"] || "Unknown",
       applicantName: row["applicantname"] || row["applicant"] || "N/A", applicantEmail: row["applicantemail"] || row["email"] || "",
       dateApplied: row["dateapplied"] || row["date"] || new Date().toISOString().slice(0,10), status,
-      mvFileNo: row["mvfileno"] || row["mvfile"] || ,
+      mvFileNo: row["mvfileno"] || row["mvfile"] || `MV-${Date.now()}`,
       classification: row["classification"] || "Private", region: row["region"] || "Region IV-A (CALABARZON)" });
   });
   return { rows, errors };
 };
 
-const SAMPLE_CSV = ;
+const SAMPLE_CSV = `plateNumber,vehicleType,applicantName,applicantEmail,dateApplied,status,mvFileNo,classification,region
+MNO234,Sedan,Cris P***,cris@example.com,2025-05-01,Received,MV-2025-00610,Private,Region IV-A (CALABARZON)
+PQR567,SUV,Ana L***,ana@example.com,2025-04-15,Available for Claiming,MV-2025-00588,Private,Region IV-A (CALABARZON)
+STU890,Motorcycle,Ben G***,ben@example.com,2025-03-20,Claimed,MV-2025-00450,Private,Region IV-A (CALABARZON)`;
 
 // ─── Shared UI ────────────────────────────────────────────────────────────────
 function AnnouncementIcon({ type }) {
@@ -83,7 +85,7 @@ function AnnouncementIcon({ type }) {
 function StatusBadge({ status }) {
   const cfg = STATUS_CONFIG[status] || STATUS_CONFIG["Received"];
   const Icon = cfg.icon;
-  return (<span className={}><Icon size={12}/>{status}</span>);
+  return (<span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${cfg.color}`}><Icon size={12}/>{status}</span>);
 }
 function DetailRow({ label, value }) {
   return (<div className="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-4 py-2.5 border-b border-gray-100 last:border-0"><span className="text-xs font-semibold text-gray-500 uppercase tracking-wide sm:w-44 shrink-0">{label}</span><span className="text-sm text-gray-800 font-medium">{value}</span></div>);
@@ -255,7 +257,7 @@ function ClaimModal({ plate, currentUser, onClose, onSave }) {
               </div>
             )}
           </div>
-          {statusMsg && <div className={}>{saving ? <Loader size={13} className="animate-spin shrink-0"/> : <CheckCircle size={13} className="shrink-0"/>}{statusMsg}</div>}
+          {statusMsg && <div className={`rounded-xl px-4 py-3 text-xs font-semibold flex items-center gap-2 ${statusMsg.startsWith("✓") ? "bg-green-50 text-green-800 border border-green-200" : statusMsg.startsWith("✗") || statusMsg.startsWith("❌") ? "bg-red-50 text-red-700 border border-red-200" : "bg-blue-50 text-blue-700 border border-blue-100"}`}>{saving ? <Loader size={13} className="animate-spin shrink-0"/> : <CheckCircle size={13} className="shrink-0"/>}{statusMsg}</div>}
           <div className="flex gap-3 pt-1">
             <button onClick={onClose} className="flex-1 py-3 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50">Cancel</button>
             <button onClick={handleSave} disabled={saving} className="flex-1 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-200 disabled:text-gray-400 text-white font-bold rounded-xl flex items-center justify-center gap-2 text-sm">
@@ -289,16 +291,16 @@ function EditPlateModal({ plate, onClose, onSave }) {
   const F = ({ label, name, type="text", options }) => (
     <div><label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-1">{label}</label>
     {options ? <select value={form[name]} onChange={e=>setForm(f=>({...f,[name]:e.target.value}))} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-500">{options.map(o=><option key={o} value={o}>{o}</option>)}</select>
-    : <input type={type} value={form[name]} onChange={e=>setForm(f=>({...f,[name]:e.target.value}))} className={}/>}
+    : <input type={type} value={form[name]} onChange={e=>setForm(f=>({...f,[name]:e.target.value}))} className={`w-full border rounded-xl px-4 py-2.5 text-sm focus:outline-none ${err[name]?"border-red-300":"border-gray-200 focus:border-blue-500"}`}/>}
     {err[name] && <p className="text-xs text-red-500 mt-1">{err[name]}</p>}</div>
   );
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-start justify-center p-4 overflow-y-auto">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg my-8">
-        <div className="bg-blue-900 rounded-t-2xl px-5 py-4 flex items-center justify-between"><h2 className="text-white font-bold">{isNew?"Add New Plate":}</h2><button onClick={onClose} className="text-blue-300 hover:text-white"><X size={20}/></button></div>
+        <div className="bg-blue-900 rounded-t-2xl px-5 py-4 flex items-center justify-between"><h2 className="text-white font-bold">{isNew?"Add New Plate":`Edit: ${plate.plateNumber}`}</h2><button onClick={onClose} className="text-blue-300 hover:text-white"><X size={20}/></button></div>
         <div className="p-5 space-y-4">
           <div className="grid grid-cols-2 gap-4">
-            <div><label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-1">Plate Number *</label><input value={form.plateNumber} onChange={e=>setForm(f=>({...f,plateNumber:e.target.value.toUpperCase()}))} maxLength={6} placeholder="ABC123" disabled={!isNew} className={}/>{err.plateNumber&&<p className="text-xs text-red-500 mt-1">{err.plateNumber}</p>}</div>
+            <div><label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-1">Plate Number *</label><input value={form.plateNumber} onChange={e=>setForm(f=>({...f,plateNumber:e.target.value.toUpperCase()}))} maxLength={6} placeholder="ABC123" disabled={!isNew} className={`w-full border rounded-xl px-4 py-2.5 text-sm font-mono font-bold tracking-widest focus:outline-none ${!isNew?"bg-gray-50":""} ${err.plateNumber?"border-red-300":"border-gray-200 focus:border-blue-500"}`}/>{err.plateNumber&&<p className="text-xs text-red-500 mt-1">{err.plateNumber}</p>}</div>
             <F label="Status" name="status" options={VALID_STATUSES}/>
           </div>
           <div className="grid grid-cols-2 gap-4"><F label="Vehicle Type *" name="vehicleType"/><F label="Classification" name="classification" options={["Private","Commercial","Public Utility"]}/></div>
@@ -367,14 +369,14 @@ function AccountManager({ profiles, setProfiles, currentUser }) {
   const FormModal = ({ isNew, onSubmit, onClose }) => (
     <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-        <div className="bg-blue-900 rounded-t-2xl px-5 py-4 flex items-center justify-between"><h2 className="text-white font-bold">{isNew?"Add Account":}</h2><button onClick={onClose} className="text-blue-300 hover:text-white"><X size={20}/></button></div>
+        <div className="bg-blue-900 rounded-t-2xl px-5 py-4 flex items-center justify-between"><h2 className="text-white font-bold">{isNew?"Add Account":`Edit: ${editAcc?.username}`}</h2><button onClick={onClose} className="text-blue-300 hover:text-white"><X size={20}/></button></div>
         <div className="p-5 space-y-4">
           {isNew && <>
-            <div><label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-1">Email *</label><input type="email" value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))} className={}/>{err.email&&<p className="text-xs text-red-500 mt-1">{err.email}</p>}</div>
-            <div><label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-1">Password *</label><div className="relative"><input type={showPw?"text":"password"} value={form.password} onChange={e=>setForm(f=>({...f,password:e.target.value}))} className={}/><button type="button" onClick={()=>setShowPw(s=>!s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">{showPw?<EyeOff size={16}/>:<Eye size={16}/>}</button></div>{err.password&&<p className="text-xs text-red-500 mt-1">{err.password}</p>}</div>
-            <div><label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-1">Username *</label><input value={form.username} onChange={e=>setForm(f=>({...f,username:e.target.value}))} className={}/>{err.username&&<p className="text-xs text-red-500 mt-1">{err.username}</p>}</div>
+            <div><label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-1">Email *</label><input type="email" value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))} className={`w-full border rounded-xl px-4 py-2.5 text-sm focus:outline-none ${err.email?"border-red-300":"border-gray-200 focus:border-blue-500"}`}/>{err.email&&<p className="text-xs text-red-500 mt-1">{err.email}</p>}</div>
+            <div><label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-1">Password *</label><div className="relative"><input type={showPw?"text":"password"} value={form.password} onChange={e=>setForm(f=>({...f,password:e.target.value}))} className={`w-full border rounded-xl px-4 py-2.5 pr-10 text-sm focus:outline-none ${err.password?"border-red-300":"border-gray-200 focus:border-blue-500"}`}/><button type="button" onClick={()=>setShowPw(s=>!s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">{showPw?<EyeOff size={16}/>:<Eye size={16}/>}</button></div>{err.password&&<p className="text-xs text-red-500 mt-1">{err.password}</p>}</div>
+            <div><label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-1">Username *</label><input value={form.username} onChange={e=>setForm(f=>({...f,username:e.target.value}))} className={`w-full border rounded-xl px-4 py-2.5 text-sm focus:outline-none ${err.username?"border-red-300":"border-gray-200 focus:border-blue-500"}`}/>{err.username&&<p className="text-xs text-red-500 mt-1">{err.username}</p>}</div>
           </>}
-          <div><label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-1">Full Name *</label><input value={form.full_name} onChange={e=>setForm(f=>({...f,full_name:e.target.value}))} className={}/>{err.full_name&&<p className="text-xs text-red-500 mt-1">{err.full_name}</p>}</div>
+          <div><label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-1">Full Name *</label><input value={form.full_name} onChange={e=>setForm(f=>({...f,full_name:e.target.value}))} className={`w-full border rounded-xl px-4 py-2.5 text-sm focus:outline-none ${err.full_name?"border-red-300":"border-gray-200 focus:border-blue-500"}`}/>{err.full_name&&<p className="text-xs text-red-500 mt-1">{err.full_name}</p>}</div>
           <div><label className="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-1">Role</label><select value={form.role} onChange={e=>setForm(f=>({...f,role:e.target.value}))} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none"><option value="admin">Admin Officer</option><option value="superadmin">Super Admin</option></select></div>
           <div className="flex gap-3 pt-1">
             <button onClick={onClose} className="flex-1 py-3 border border-gray-200 rounded-xl text-sm font-semibold hover:bg-gray-50">Cancel</button>
@@ -403,8 +405,8 @@ function AccountManager({ profiles, setProfiles, currentUser }) {
                 <tr key={p.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3 font-mono font-semibold text-gray-800">{p.username}{p.id===currentUser.id&&<span className="ml-1 text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">You</span>}</td>
                   <td className="px-4 py-3 text-gray-700">{p.full_name}</td>
-                  <td className="px-4 py-3"><span className={}>{p.role==="superadmin"?"Super Admin":"Admin Officer"}</span></td>
-                  <td className="px-4 py-3"><span className={}>{p.active?"Active":"Inactive"}</span></td>
+                  <td className="px-4 py-3"><span className={`text-xs font-semibold px-2 py-1 rounded-full ${p.role==="superadmin"?"bg-yellow-100 text-yellow-800":"bg-blue-50 text-blue-700"}`}>{p.role==="superadmin"?"Super Admin":"Admin Officer"}</span></td>
+                  <td className="px-4 py-3"><span className={`text-xs font-semibold px-2 py-1 rounded-full ${p.active?"bg-green-100 text-green-700":"bg-red-50 text-red-600"}`}>{p.active?"Active":"Inactive"}</span></td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <button onClick={()=>{setEditAcc(p);setForm({email:"",password:"",username:p.username,full_name:p.full_name,role:p.role});}} className="text-blue-500 hover:text-blue-700 p-1 rounded hover:bg-blue-50"><Edit3 size={14}/></button>
@@ -479,12 +481,12 @@ function AdminPanel({ currentUser, profiles, setProfiles, onLogout }) {
       {showNewPlate && <EditPlateModal plate={{}} onClose={()=>setShowNewPlate(false)} onSave={handleSavePlate}/>}
       {claimPlate && <ClaimModal plate={claimPlate} currentUser={currentUser} onClose={()=>setClaimPlate(null)} onSave={handleSaveClaim}/>}
 
-      <LTOHeader subtitle={}
+      <LTOHeader subtitle={`${currentUser.full_name} — ${currentUser.role==="superadmin"?"Super Admin":"Admin Officer"}`}
         rightSlot={<button onClick={onLogout} className="flex items-center gap-2 text-xs bg-blue-800 hover:bg-blue-700 px-3 py-2 rounded-lg transition-colors"><LogOut size={14}/> Logout</button>}/>
 
       <div className="max-w-5xl mx-auto px-4 py-6 space-y-5">
         <div className="flex flex-wrap gap-2 items-center">
-          {tabs.map(t=>(<button key={t.id} onClick={()=>setTab(t.id)} className={}><t.icon size={15}/>{t.label}{t.count!==undefined&&<span className={}>{t.count}</span>}</button>))}
+          {tabs.map(t=>(<button key={t.id} onClick={()=>setTab(t.id)} className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors flex items-center gap-2 ${tab===t.id?"bg-blue-700 text-white shadow":"bg-white text-gray-600 border border-gray-200 hover:bg-gray-50"}`}><t.icon size={15}/>{t.label}{t.count!==undefined&&<span className={`text-xs px-1.5 py-0.5 rounded-full ${tab===t.id?"bg-white bg-opacity-20 text-white":"bg-gray-100 text-gray-500"}`}>{t.count}</span>}</button>))}
           <button onClick={loadPlates} className="ml-auto p-2 text-gray-400 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors" title="Refresh"><RefreshCw size={15}/></button>
         </div>
 
@@ -650,8 +652,8 @@ function PublicTracker({ onAdminClick }) {
         {uiState==="notfound" && <div className="bg-white rounded-2xl shadow-sm border border-red-100 p-10 flex flex-col items-center gap-3 text-center"><div className="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center"><XCircle size={28} className="text-red-500"/></div><h3 className="text-gray-800 font-bold text-lg">Plate Not Found</h3><p className="text-gray-500 text-sm max-w-sm">No records found for <span className="font-mono font-bold text-gray-700">{query}</span>. Please verify the plate number and try again.</p><button onClick={()=>{setUiState("idle");setQuery("");}} className="mt-2 text-blue-700 text-sm underline">Clear and try again</button></div>}
         {uiState==="found" && result && cfg && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className={}>
-              <div className="flex items-center gap-2"><span className={}/><span className="text-sm font-bold">Current Status</span></div>
+            <div className={`px-5 py-3 flex items-center justify-between gap-3 border-b ${cfg.color}`}>
+              <div className="flex items-center gap-2"><span className={`w-2.5 h-2.5 rounded-full ${cfg.dot} animate-pulse`}/><span className="text-sm font-bold">Current Status</span></div>
               <StatusBadge status={result.status}/>
             </div>
             <div className="p-5 space-y-5">
@@ -659,7 +661,7 @@ function PublicTracker({ onAdminClick }) {
                 <div><div className="inline-flex items-center gap-2 bg-gray-900 text-white px-4 py-2 rounded-lg font-mono text-2xl font-bold tracking-widest shadow-md mb-1"><Car size={20} className="text-yellow-400"/>{result.plateNumber}</div><p className="text-xs text-gray-500 mt-1 pl-1">MV File No: <span className="font-mono font-semibold text-gray-700">{result.mvFileNo}</span></p></div>
                 <div className="text-xs text-gray-400 sm:text-right"><p>Last updated</p><p className="font-semibold text-gray-600">{result.lastUpdated}</p></div>
               </div>
-              <div className={}><cfg.icon size={18} className="shrink-0 mt-0.5"/><p className="text-sm font-medium">{cfg.desc}</p></div>
+              <div className={`flex gap-3 rounded-xl p-4 border ${cfg.color}`}><cfg.icon size={18} className="shrink-0 mt-0.5"/><p className="text-sm font-medium">{cfg.desc}</p></div>
               <div className="rounded-xl bg-gray-50 border border-gray-100 px-4">
                 <DetailRow label="Applicant" value={result.applicantName}/>
                 <DetailRow label="Vehicle Type" value={result.vehicleType}/>
@@ -690,7 +692,7 @@ function PublicTracker({ onAdminClick }) {
             <div className="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center"><Search size={28} className="text-blue-700"/></div>
             <h3 className="text-gray-800 font-bold text-lg">Check Your Plate Status</h3>
             <p className="text-gray-500 text-sm max-w-sm leading-relaxed">Enter your 6-character plate number (e.g., <span className="font-mono font-semibold">ABC123</span>) to check if your replacement white plate is ready for claiming.</p>
-            <div className="flex flex-col sm:flex-row gap-2 mt-2 w-full max-w-md justify-center">{VALID_STATUSES.map(s=>{const c=STATUS_CONFIG[s];return <span key={s} className={}>{s}</span>;})}</div>
+            <div className="flex flex-col sm:flex-row gap-2 mt-2 w-full max-w-md justify-center">{VALID_STATUSES.map(s=>{const c=STATUS_CONFIG[s];return <span key={s} className={`text-xs font-semibold px-3 py-2 rounded-lg border text-center ${c.color}`}>{s}</span>;})}</div>
           </div>
         )}
         <div><h2 className="text-sm font-bold text-gray-700 uppercase tracking-wide mb-3 flex items-center gap-2"><Bell size={15} className="text-blue-700"/> Announcements & Office Info</h2><div className="space-y-2">{ANNOUNCEMENTS.map((a,i)=><AnnouncementCard key={i} item={a}/>)}</div></div>
