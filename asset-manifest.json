@@ -1,10 +1,10 @@
 {
   "files": {
-    "main.js": "/lto-binangonan-platestrackingnew1/static/js/main.5d37358e.js",
+    "main.js": "/lto-binangonan-platestrackingnew1/static/js/main.e510bd9f.js",
     "index.html": "/lto-binangonan-platestrackingnew1/index.html",
-    "main.5d37358e.js.map": "/lto-binangonan-platestrackingnew1/static/js/main.5d37358e.js.map"
+    "main.e510bd9f.js.map": "/lto-binangonan-platestrackingnew1/static/js/main.e510bd9f.js.map"
   },
   "entrypoints": [
-    "static/js/main.5d37358e.js"
+    "static/js/main.e510bd9f.js"
   ]
 }
