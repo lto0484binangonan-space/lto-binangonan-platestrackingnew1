@@ -1,8 +1,8 @@
 {
   "files": {
-    "main.js": "/lto-binangonan-platestrackingnew1/static/js/main.e510bd9f.js",
-    "index.html": "/lto-binangonan-platestrackingnew1/index.html",
-    "main.e510bd9f.js.map": "/lto-binangonan-platestrackingnew1/static/js/main.e510bd9f.js.map"
+    "main.js": "./static/js/main.e510bd9f.js",
+    "index.html": "./index.html",
+    "main.e510bd9f.js.map": "./static/js/main.e510bd9f.js.map"
   },
   "entrypoints": [
     "static/js/main.e510bd9f.js"
